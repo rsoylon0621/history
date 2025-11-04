@@ -1,54 +1,66 @@
 const axios = require("axios");
 
-// set your Firebase Realtime Database (no .json at end)
+// Set your Firebase base (without .json)
 const FIREBASE_BASE_URL = process.env.FIREBASE_BASE_URL;
 
-// coordinates for Kapatagan, PH (near Digos)
-const LAT = 6.75;
-const LON = 125.35;
+// Coordinates
+const LOCATIONS = [
+  { name: "cabbage_weather", lat: 6.75, lon: 125.35 },        // Kapatagan, PH
+  { name: "weather", lat: 7.09, lon: 125.49 }                 // Tugbok, Davao City
+];
+
+// Time window
 const START_DATE = "2025-08-01";
-const END_DATE = "2025-10-13";
+const END_DATE   = "2025-10-13";
 
-async function fetchOpenMeteoHistory() {
+async function fetchAndUpload(location) {
+  const { name, lat, lon } = location;
   try {
-    const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${LAT}&longitude=${LON}&start_date=${START_DATE}&end_date=${END_DATE}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,relative_humidity_2m_max,relative_humidity_2m_min&timezone=Asia/Manila`;
+    // Hourly Open-Meteo archive endpoint
+    const url =
+      `https://archive-api.open-meteo.com/v1/archive?` +
+      `latitude=${lat}&longitude=${lon}` +
+      `&start_date=${START_DATE}&end_date=${END_DATE}` +
+      `&hourly=temperature_2m,relative_humidity_2m,precipitation&timezone=Asia/Manila`;
 
-    console.log("Fetching:", url);
+    console.log(`📡 Fetching ${name} data: ${url}`);
     const res = await axios.get(url);
-
     const data = res.data;
 
-    if (!data || !data.daily || !data.daily.time) {
-      throw new Error("Invalid data from Open-Meteo");
+    const hours = data?.hourly?.time;
+    if (!hours) throw new Error("Invalid data structure from Open‑Meteo");
+
+    const temps  = data.hourly.temperature_2m;
+    const hums   = data.hourly.relative_humidity_2m;
+    const rains  = data.hourly.precipitation;
+
+    for (let i = 0; i < hours.length; i++) {
+      const [dateStr, timeStr] = hours[i].split("T");     // e.g. 2025‑08‑01T00:00
+      const hour = timeStr.substring(0, 5);               // 00:00, 01:00, ...
+      const temp_c     = temps[i];
+      const humidity   = hums[i];
+      const rain_chance = rains[i] > 0 ? 100 : 0;
+
+      const path = `${FIREBASE_BASE_URL}/${name}_${dateStr}/${hour}.json`;
+
+      await axios.put(path, { temp_c, humidity, rain_chance });
+      console.log(`✅ ${name} ${dateStr} ${hour} — Temp ${temp_c}°C, Hum ${humidity}%, Rain ${rain_chance}%`);
     }
 
-    const { time, temperature_2m_max, temperature_2m_min, relative_humidity_2m_max, relative_humidity_2m_min, precipitation_sum } = data.daily;
-
-    for (let i = 0; i < time.length; i++) {
-      const date = time[i];
-      const avgTemp = (temperature_2m_max[i] + temperature_2m_min[i]) / 2;
-      const avgHumidity = (relative_humidity_2m_max[i] + relative_humidity_2m_min[i]) / 2;
-      const rainChance = precipitation_sum[i] > 0 ? 100 : 0;
-
-      const path = `${FIREBASE_BASE_URL}/cabbage_weather_${date}/00:00.json`;
-
-      await axios.put(path, {
-        temp_c: avgTemp,
-        humidity: avgHumidity,
-        rain_chance: rainChance,
-      });
-
-      console.log(`✅ Uploaded ${date}: Temp ${avgTemp.toFixed(1)}°C, Hum ${avgHumidity.toFixed(0)}%, Rain ${rainChance}%`);
-    }
-
-    console.log("✅ Historical upload complete!");
+    console.log(`✅ Completed upload for ${name}!`);
   } catch (err) {
-    if (err.response) {
-      console.error(`❌ HTTP ${err.response.status}:`, err.response.data);
-    } else {
-      console.error("❌ Error:", err.message);
-    }
+    if (err.response)
+      console.error(`❌ ${name} HTTP ${err.response.status}`, err.response.data);
+    else
+      console.error(`❌ ${name} Error:`, err.message);
   }
 }
 
-fetchOpenMeteoHistory();
+async function main() {
+  for (const loc of LOCATIONS) {
+    await fetchAndUpload(loc);
+  }
+  console.log("🎉 All locations done!");
+}
+
+main();
