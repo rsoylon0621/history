@@ -1,7 +1,7 @@
 {
-  "name": "weather-backfill",
+  "name": "cabbage-weather-opensource",
   "version": "1.0.0",
-  "description": "Historical weather data fetcher and uploader to Firebase",
+  "description": "Fetch historical weather data from Open-Meteo for Kapatagan, PH and upload to Firebase",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
