@@ -1,13 +1,39 @@
-{
-  "name": "cabbage-weather-history-uploader",
-  "version": "1.0.0",
-  "description": "Script to backfill historical weather data to Firebase for cabbage field monitoring.",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
-  "dependencies": {
-    "axios": "^1.7.0"
-  },
-  "index.js": "const axios = require(\"axios\");\n\nconst WEATHER_API_KEY = process.env.WEATHER_API_KEY;\nconst FIREBASE_BASE_URL = process.env.FIREBASE_BASE_URL;\n\nfunction formatDate(date) {\n  const d = new Date(date);\n  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, \"0\")}-${String(d.getDate()).padStart(2, \"0\")}`;\n}\n\nasync function fetchAndUpload(startDate, endDate) {\n  const current = new Date(startDate);\n\n  while (current <= endDate) {\n    const dateStr = formatDate(current);\n    const url = `https://api.weatherapi.com/v1/history.json?key=${WEATHER_API_KEY}&q=Kapatagan,PH&dt=${dateStr}`;\n\n    try {\n      const res = await axios.get(url);\n      const data = res.data.forecast.forecastday[0].day;\n      const avgTemp = data.avgtemp_c;\n      const avgHumidity = data.avghumidity;\n      const rainChance = data.daily_chance_of_rain || (data.totalprecip_mm > 0 ? 100 : 0);\n\n      const path = `${FIREBASE_BASE_URL}/cabbage_weather_${dateStr}/00:00.json`;\n      await axios.put(path, { temp_c: avgTemp, humidity: avgHumidity, rain_chance: rainChance });\n\n      console.log(`\u2705 Uploaded ${dateStr} \u2192 Temp ${avgTemp}\u00b0C, Hum ${avgHumidity}%, Rain ${rainChance}%`);\n    } catch (err) {\n      console.error(`\u274c Error on ${dateStr}: ${err.message}`);\n    }\n\n    current.setDate(current.getDate() + 1);\n  }\n\n  console.log(\"\u2705 Historical import complete!\");\n}\n\nfetchAndUpload(new Date(\"2025-08-01\"), new Date(\"2025-10-13\"));\n"
+const axios = require("axios");
+
+const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
+const FIREBASE_BASE_URL = process.env.FIREBASE_BASE_URL;
+
+function formatDate(date) {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+
+async function fetchAndUpload(startDate, endDate) {
+  const current = new Date(startDate);
+
+  while (current <= endDate) {
+    const dateStr = formatDate(current);
+    const url = `https://api.weatherapi.com/v1/history.json?key=${WEATHER_API_KEY}&q=Kapatagan,PH&dt=${dateStr}`;
+
+    try {
+      const res = await axios.get(url);
+      const data = res.data.forecast.forecastday[0].day;
+      const avgTemp = data.avgtemp_c;
+      const avgHumidity = data.avghumidity;
+      const rainChance = data.daily_chance_of_rain || (data.totalprecip_mm > 0 ? 100 : 0);
+
+      const path = `${FIREBASE_BASE_URL}/cabbage_weather_${dateStr}/00:00.json`;
+      await axios.put(path, { temp_c: avgTemp, humidity: avgHumidity, rain_chance: rainChance });
+
+      console.log(`✅ Uploaded ${dateStr} → Temp ${avgTemp}°C, Hum ${avgHumidity}%, Rain ${rainChance}%`);
+    } catch (err) {
+      console.error(`❌ Error on ${dateStr}: ${err.message}`);
+    }
+
+    current.setDate(current.getDate() + 1);
+  }
+
+  console.log("✅ Historical import complete!");
+}
+
+fetchAndUpload(new Date("2025-08-01"), new Date("2025-10-13"));
