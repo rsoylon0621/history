@@ -1,7 +1,7 @@
 {
-  "name": "cabbage-weather-opensource",
+  "name": "dual-weather-openmeteo",
   "version": "1.0.0",
-  "description": "Fetch historical weather data from Open-Meteo for Kapatagan, PH and upload to Firebase",
+  "description": "Fetch hourly weather for Kapatagan and Tugbok from Open‑Meteo and upload to Firebase",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
