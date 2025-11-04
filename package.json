@@ -1,12 +1,13 @@
 {
-  "name": "dual-weather-openmeteo",
+  "name": "crop-weather-openmeteo",
   "version": "1.0.0",
-  "description": "Fetch hourly weather for Kapatagan and Tugbok from Open‑Meteo and upload to Firebase",
+  "description": "Fetch historical and realtime hourly weather for cabbage (Kapatagan) and radish (Tugbok) from Open‑Meteo and upload to Firebase",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "axios": "^1.7.0"
+    "axios": "^1.7.0",
+    "node-cron": "^3.0.0"
   }
 }
