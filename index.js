@@ -1,39 +1,54 @@
 const axios = require("axios");
 
-const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
+// set your Firebase Realtime Database (no .json at end)
 const FIREBASE_BASE_URL = process.env.FIREBASE_BASE_URL;
 
-function formatDate(date) {
-  const d = new Date(date);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+// coordinates for Kapatagan, PH (near Digos)
+const LAT = 6.75;
+const LON = 125.35;
+const START_DATE = "2025-08-01";
+const END_DATE = "2025-10-13";
 
-async function fetchAndUpload(startDate, endDate) {
-  const current = new Date(startDate);
+async function fetchOpenMeteoHistory() {
+  try {
+    const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${LAT}&longitude=${LON}&start_date=${START_DATE}&end_date=${END_DATE}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,relative_humidity_2m_max,relative_humidity_2m_min&timezone=Asia/Manila`;
 
-  while (current <= endDate) {
-    const dateStr = formatDate(current);
-    const url = `https://api.weatherapi.com/v1/history.json?key=${WEATHER_API_KEY}&q=Kapatagan,PH&dt=${dateStr}`;
+    console.log("Fetching:", url);
+    const res = await axios.get(url);
 
-    try {
-      const res = await axios.get(url);
-      const data = res.data.forecast.forecastday[0].day;
-      const avgTemp = data.avgtemp_c;
-      const avgHumidity = data.avghumidity;
-      const rainChance = data.daily_chance_of_rain || (data.totalprecip_mm > 0 ? 100 : 0);
+    const data = res.data;
 
-      const path = `${FIREBASE_BASE_URL}/cabbage_weather_${dateStr}/00:00.json`;
-      await axios.put(path, { temp_c: avgTemp, humidity: avgHumidity, rain_chance: rainChance });
-
-      console.log(`✅ Uploaded ${dateStr} → Temp ${avgTemp}°C, Hum ${avgHumidity}%, Rain ${rainChance}%`);
-    } catch (err) {
-      console.error(`❌ Error on ${dateStr}: ${err.message}`);
+    if (!data || !data.daily || !data.daily.time) {
+      throw new Error("Invalid data from Open-Meteo");
     }
 
-    current.setDate(current.getDate() + 1);
-  }
+    const { time, temperature_2m_max, temperature_2m_min, relative_humidity_2m_max, relative_humidity_2m_min, precipitation_sum } = data.daily;
 
-  console.log("✅ Historical import complete!");
+    for (let i = 0; i < time.length; i++) {
+      const date = time[i];
+      const avgTemp = (temperature_2m_max[i] + temperature_2m_min[i]) / 2;
+      const avgHumidity = (relative_humidity_2m_max[i] + relative_humidity_2m_min[i]) / 2;
+      const rainChance = precipitation_sum[i] > 0 ? 100 : 0;
+
+      const path = `${FIREBASE_BASE_URL}/cabbage_weather_${date}/00:00.json`;
+
+      await axios.put(path, {
+        temp_c: avgTemp,
+        humidity: avgHumidity,
+        rain_chance: rainChance,
+      });
+
+      console.log(`✅ Uploaded ${date}: Temp ${avgTemp.toFixed(1)}°C, Hum ${avgHumidity.toFixed(0)}%, Rain ${rainChance}%`);
+    }
+
+    console.log("✅ Historical upload complete!");
+  } catch (err) {
+    if (err.response) {
+      console.error(`❌ HTTP ${err.response.status}:`, err.response.data);
+    } else {
+      console.error("❌ Error:", err.message);
+    }
+  }
 }
 
-fetchAndUpload(new Date("2025-08-01"), new Date("2025-10-13"));
+fetchOpenMeteoHistory();
